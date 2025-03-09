@@ -5,6 +5,10 @@
 	<title>Tuner</title>
 
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+
+	<!-- Simple tuner script -->
+	<script src="https://halimb.github.io/simple-tuner/simple-tuner.js"></script>
+
 	<script>
 
 	// Wait for the page to load before initializing the tuner
@@ -25,95 +29,39 @@
 		waveformCanvas = document.getElementById('waveform');
 		barGraphCanvas = document.getElementById('bargraph');
 
-		// Get access to the microphone
-		navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
-			microphone = audioContext.createMediaStreamSource(stream);
-			microphone.connect(analyser);
-			analyser.fftSize = 2048;
-			loop();
-		}).catch(function(err) {
-			console.log('Error accessing microphone: ' + err);
+		// Initialize Simple Tuner
+		const tuner = new SimpleTuner({
+			'canvas': document.getElementById('waveform'), // Attach to your canvas
+			'input': 'microphone', // Use microphone input
+			'autoStart': true, // Automatically start tuning
+			'sensitivity': 100, // Adjust sensitivity for frequency detection
+			'minimumFrequency': 30, // Lower limit for frequency range
+			'maximumFrequency': 2000 // Upper limit for frequency range
 		});
-	}
 
-	// Function to loop and process the audio data
-	function loop() {
-		const bufferLength = analyser.frequencyBinCount;
-		const dataArray = new Uint8Array(bufferLength);
-		const canvasCtx = waveformCanvas.getContext('2d');
-		const barCanvasCtx = barGraphCanvas.getContext('2d');
+		// Set up tuner callbacks
+		tuner.on('note', function(note) {
+			// Display note data
+			noteDisplay.textContent = note.name;
+			frequencyDisplay.textContent = note.frequency + ' Hz';
+			tuningDisplay.textContent = note.tuning;
+		});
 
-		analyser.getByteFrequencyData(dataArray);
+		tuner.on('frequency', function(frequency) {
+			// Update frequency display
+			frequencyDisplay.textContent = frequency + ' Hz';
+		});
 
-		// Draw waveform
-		canvasCtx.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
-		canvasCtx.beginPath();
-		const sliceWidth = waveformCanvas.width * 1.0 / bufferLength;
-		let x = 0;
-		for (let i = 0; i < bufferLength; i++) {
-			const v = dataArray[i] / 128.0; // Scale to 0-1
-			const y = v * waveformCanvas.height / 2;
-			if (i === 0) {
-				canvasCtx.moveTo(x, y);
-			} else {
-				canvasCtx.lineTo(x, y);
-			}
-			x += sliceWidth;
-		}
-		canvasCtx.lineTo(waveformCanvas.width, waveformCanvas.height / 2);
-		canvasCtx.stroke();
+		// Handle waveform and bar graph rendering
+		function render() {
+			tuner.render(); // Render waveform on canvas
 
-		// Draw bar graph
-		barCanvasCtx.clearRect(0, 0, barGraphCanvas.width, barGraphCanvas.height);
-		const barWidth = barGraphCanvas.width / bufferLength;
-		for (let i = 0; i < bufferLength; i++) {
-			const barHeight = dataArray[i];
-			barCanvasCtx.fillStyle = 'rgb(' + (barHeight + 100) + ',50,50)';
-			barCanvasCtx.fillRect(i * barWidth, barGraphCanvas.height - barHeight, barWidth, barHeight);
+			// Request next frame
+			requestAnimationFrame(render);
 		}
 
-		// Pitch detection
-		detectPitch(dataArray);
-
-		// Request next animation frame
-		requestAnimationFrame(loop);
-	}
-
-	// Function to detect the pitch from frequency data
-	function detectPitch(dataArray) {
-		const bufferLength = dataArray.length;
-		let maxIndex = -1;
-		let maxValue = -1;
-		for (let i = 0; i < bufferLength; i++) {
-			if (dataArray[i] > maxValue) {
-				maxValue = dataArray[i];
-				maxIndex = i;
-			}
-		}
-
-		// Calculate frequency of the detected pitch
-		const nyquist = audioContext.sampleRate / 2;
-		const frequency = maxIndex * nyquist / (bufferLength / 2);
-
-		// Display frequency and note information
-		frequencyDisplay.textContent = frequency.toFixed(2) + ' Hz';
-
-		const noteInfo = getPianoNoteFromFrequency(frequency);
-		noteDisplay.textContent = noteInfo.note;
-		tuningDisplay.textContent = noteInfo.tuning;
-
-	}
-
-	// Convert frequency to piano note
-	function getPianoNoteFromFrequency(frequency) {
-		const A440 = 440; // Frequency of A4 in Hz
-		const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-		const noteIndex = Math.round(12 * Math.log(frequency / A440) / Math.log(2));
-		const octave = Math.floor(noteIndex / 12) + 4; // Assume A4 is in octave 4
-		const note = noteNames[(noteIndex + 120) % 12]; // Get the note name
-		const tuning = (frequency - A440) > 0 ? 'Sharp' : 'Flat';
-
-		return { note: note + octave, tuning: tuning };
+		// Start rendering the tuner display
+		render();
 	}
 	</script>
 
