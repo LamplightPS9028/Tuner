@@ -78,4 +78,14 @@
         document.getElementById("start-button").addEventListener("click", async function() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                document.getElementById("start-but
+                document.getElementById("start-button").style.display = "none";
+                startTuning(stream);
+            } catch (error) {
+                document.getElementById("status").innerText = "⚠️ Microphone access denied. Please enable it in your browser settings.";
+            }
+        });
+
+        function startTuning(stream) {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const analyser = audioContext.createAnalyser();
+       
