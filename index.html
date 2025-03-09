@@ -32,7 +32,7 @@
         // Function to calculate the note name based on frequency
         function getNoteFromFrequency(frequency) {
             const noteIndex = Math.round(12 * Math.log2(frequency / A4_FREQUENCY)) % 12;
-            return NOTE_NAMES[(noteIndex + 12) % 12];
+            return NOTE_NAMES[(noteIndex + 12 - 3) % 12];  // Shift the note down by 3 semitones
         }
 
         // Function to calculate the deviation from the ideal frequency
