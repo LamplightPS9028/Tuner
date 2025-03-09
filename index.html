@@ -172,7 +172,11 @@
                 const sampleRate = audioContext.sampleRate;
                 const frequency = peakIndex * sampleRate / analyser.fftSize;
 
-                frequencies.push(frequency);
+                // Only keep frequencies close to Middle C (261.63Hz)
+                const middleCFrequency = 261.63;
+                if (Math.abs(frequency - middleCFrequency) < 5) {
+                    frequencies.push(frequency);
+                }
 
                 // Update progress bar for the 3-second duration
                 let elapsed = Date.now() - startTime;
@@ -187,7 +191,7 @@
                     // Reset for the next sample
                     startTime = Date.now();
                     frequencies = [];
-                    document.getElementById("progress-bar").style.width = '0%';
+                    document.getElementById("progress-bar").style.width = '100%';
                 }
 
                 requestAnimationFrame(detectPitch);
