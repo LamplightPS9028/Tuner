@@ -228,6 +228,15 @@
             let closestNote = null;
             let closestDistance = Infinity;
 
+            // Basic piano note frequencies (some examples)
+            let pianoNoteFrequencies = {
+                "A0": 27.5, "A#0": 29.135, "B0": 30.868,
+                "C1": 32.703, "C#1": 34.648, "D1": 36.708, "D#1": 38.891, "E1": 41.203,
+                "F1": 43.654, "F#1": 46.249, "G1": 48.999, "G#1": 51.913,
+                // Add more notes here...
+                "A4": 440.0, // The A4 note (440Hz)
+            };
+
             for (let note in pianoNoteFrequencies) {
                 let noteFreq = pianoNoteFrequencies[note];
                 let distance = Math.abs(frequency - noteFreq);
