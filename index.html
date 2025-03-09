@@ -102,6 +102,7 @@
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
                 microphone = audioContext.createMediaStreamSource(stream);
                 microphone.connect(analyser);
             } catch (err) {
@@ -124,7 +125,7 @@
                 let bufferLength = analyser.frequencyBinCount;
                 let dataArray = new Uint8Array(bufferLength);
                 analyser.getByteFrequencyData(dataArray);
-                let frequency = getDominantFrequency(dataArray, bufferLength);
+                let frequency = getFundamentalFrequency(dataArray, bufferLength);
 
                 buffer.push(frequency);
                 let progress = (Date.now() - startTime) / sampleDuration * 100;
@@ -136,32 +137,33 @@
             processAudio();
         }
 
-        function getDominantFrequency(dataArray, bufferLength) {
-            let maxIndex = 0;
-            let maxValue = 0;
+        function getFundamentalFrequency(dataArray, bufferLength) {
+            let nyquist = audioContext.sampleRate / 2;
+            let frequency = 0;
+            let maxMagnitude = 0;
 
+            // Find the peak in the frequency spectrum
             for (let i = 0; i < bufferLength; i++) {
-                if (dataArray[i] > maxValue) {
-                    maxValue = dataArray[i];
-                    maxIndex = i;
+                let magnitude = dataArray[i];
+                if (magnitude > maxMagnitude) {
+                    maxMagnitude = magnitude;
+                    frequency = i * nyquist / bufferLength;
                 }
             }
 
-            let nyquist = audioContext.sampleRate / 2;
-            let frequency = maxIndex * nyquist / bufferLength;
             return frequency;
         }
 
         function calculateAverageFrequency(buffer) {
-            let sum = buffer.reduce((acc, curr) => acc + curr, 0);
+            let sum = buffer.reduce((acc, val) => acc + val, 0);
             return sum / buffer.length;
         }
 
         function getClosestNoteFromFrequency(frequency) {
-            let closestNote = "";
+            let closestNote = '';
             let smallestDifference = Infinity;
 
-            for (let note in notesFrequencyMap) {
+            for (const note in notesFrequencyMap) {
                 let noteFrequency = notesFrequencyMap[note];
                 let difference = Math.abs(frequency - noteFrequency);
 
