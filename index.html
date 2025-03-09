@@ -86,4 +86,151 @@
 <body>
 
     <h1>🎹 Piano Tuner</h1>
-    <p>Pl
+    <p>Play **Middle C** on your piano, and we'll check if it's in tune!</p>
+    
+    <div class="piano">
+        <div class="key"></div>
+        <div class="key"></div>
+        <div class="black-key"></div>
+        <div class="key"></div>
+        <div class="key"></div>
+        <div class="black-key"></div>
+        <div class="key" id="middle-c"></div>
+        <div class="key"></div>
+        <div class="black-key"></div>
+        <div class="key"></div>
+        <div class="key"></div>
+        <div class="black-key"></div>
+        <div class="key"></div>
+        <div class="key"></div>
+    </div>
+    
+    <div id="progress-bar-container">
+        <div id="progress-bar"></div>
+    </div>
+
+    <button id="microphone-button">Enable Microphone</button>
+    
+    <p id="status">Click the button to enable microphone access.</p>
+
+    <script>
+        // Function to request microphone access
+        function requestMicrophonePermission() {
+            console.log("Requesting microphone access...");
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    console.log("Microphone access granted!");
+                    document.getElementById("status").innerText = "Microphone access granted. Play Middle C!";
+                    document.getElementById("microphone-button").style.display = 'none'; // Hide button once access granted
+                    startTuning(stream);
+                })
+                .catch(error => {
+                    console.log("Error accessing microphone:", error);
+                    if (error.name === 'NotAllowedError') {
+                        document.getElementById("status").innerText = "⚠️ Microphone access denied. Please enable it in your browser settings.";
+                    } else if (error.name === 'NotFoundError') {
+                        document.getElementById("status").innerText = "⚠️ No microphone found. Please connect a microphone.";
+                    } else {
+                        document.getElementById("status").innerText = "⚠️ Error accessing the microphone. Please try again.";
+                    }
+                });
+        }
+
+        // Start tuning function
+        function startTuning(stream) {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const analyser = audioContext.createAnalyser();
+            const microphone = audioContext.createMediaStreamSource(stream);
+            analyser.fftSize = 2048;
+            microphone.connect(analyser);
+            const buffer = new Float32Array(analyser.fftSize);
+
+            let frequencies = [];
+            let startTime = Date.now();
+
+            function detectPitch() {
+                analyser.getFloatTimeDomainData(buffer);
+                let sum = 0;
+                for (let i = 0; i < buffer.length; i++) {
+                    sum += buffer[i] * buffer[i];
+                }
+                let rms = Math.sqrt(sum / buffer.length);
+                if (rms < 0.01) {
+                    requestAnimationFrame(detectPitch);
+                    return;
+                }
+
+                let peakIndex = 0;
+                let maxVal = 0;
+                for (let i = 0; i < buffer.length; i++) {
+                    if (buffer[i] > maxVal) {
+                        maxVal = buffer[i];
+                        peakIndex = i;
+                    }
+                }
+
+                const sampleRate = audioContext.sampleRate;
+                const frequency = peakIndex * sampleRate / analyser.fftSize;
+
+                frequencies.push(frequency);
+
+                // Update progress bar for the 3-second duration
+                let elapsed = Date.now() - startTime;
+                let progress = Math.min((elapsed / 3000) * 100, 100);
+                document.getElementById("progress-bar").style.width = progress + '%';
+
+                if (elapsed >= 3000) {
+                    // Once 3 seconds are up, calculate the average frequency
+                    const averageFrequency = calculateAverage(frequencies);
+                    updateDisplay(averageFrequency);
+
+                    // Reset for the next sample
+                    startTime = Date.now();
+                    frequencies = [];
+                    document.getElementById("progress-bar").style.width = '0%';
+                }
+
+                requestAnimationFrame(detectPitch);
+            }
+
+            detectPitch();
+        }
+
+        // Calculate average frequency
+        function calculateAverage(frequencies) {
+            const sum = frequencies.reduce((acc, val) => acc + val, 0);
+            return sum / frequencies.length;
+        }
+
+        // Update the display with the tuning result
+        function updateDisplay(frequency) {
+            const middleCFrequency = 261.63;  // Frequency of Middle C
+            const difference = frequency - middleCFrequency;
+            
+            let message = `🎶 Detected Frequency: ${Math.round(frequency)} Hz`;
+            let detune = difference % 100;
+            if (detune > 50) detune -= 100;
+            else if (detune < -50) detune += 100;
+
+            if (Math.abs(detune) < 5) {
+                message += "\n✅ Your Middle C is in tune!";
+            } else if (detune > 5) {
+                message += "\n🔺 Your note is a bit sharp!";
+            } else {
+                message += "\n🔻 Your note is a bit flat!";
+            }
+
+            if (Math.abs(detune) > 20) {
+                message += "\n🎹 Time to tune your piano!";
+            }
+
+            document.getElementById("status").innerText = message;
+        }
+
+        // Attach the requestMicrophonePermission function to the button click
+        document.getElementById("microphone-button").addEventListener("click", requestMicrophonePermission);
+
+    </script>
+
+</body>
+</html>
