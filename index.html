@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Piano Tuner - Middle C</title>
+    <title>Piano Tuner - A Notes</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -52,58 +52,12 @@
         #microphone-button:hover {
             background-color: #218838;
         }
-        /* Style for the piano keyboard */
-        .piano {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 20px 0;
-        }
-        .key {
-            width: 30px;
-            height: 150px;
-            background-color: white;
-            border: 1px solid black;
-            position: relative;
-            z-index: 1;
-        }
-        .black-key {
-            width: 20px;
-            height: 100px;
-            background-color: black;
-            position: absolute;
-            left: 20px;
-            z-index: 2;
-        }
-        .highlight {
-            background-color: #ff4500;
-        }
-        #middle-c {
-            background-color: #ff4500;
-        }
     </style>
 </head>
 <body>
 
     <h1>🎹 Piano Tuner</h1>
-    <p>Play **Middle C** on your piano, and we'll check if it's in tune!</p>
-    
-    <div class="piano">
-        <div class="key"></div>
-        <div class="key"></div>
-        <div class="black-key"></div>
-        <div class="key"></div>
-        <div class="key"></div>
-        <div class="black-key"></div>
-        <div class="key" id="middle-c"></div>
-        <div class="key"></div>
-        <div class="black-key"></div>
-        <div class="key"></div>
-        <div class="key"></div>
-        <div class="black-key"></div>
-        <div class="key"></div>
-        <div class="key"></div>
-    </div>
+    <p>Play the **"A"** notes on your piano, and we'll check if they're in tune!</p>
     
     <div id="progress-bar-container">
         <div id="progress-bar"></div>
@@ -120,7 +74,7 @@
             navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(stream => {
                     console.log("Microphone access granted!");
-                    document.getElementById("status").innerText = "Microphone access granted. Play Middle C!";
+                    document.getElementById("status").innerText = "Microphone access granted. Play the A notes!";
                     document.getElementById("microphone-button").style.display = 'none'; // Hide button once access granted
                     startTuning(stream);
                 })
@@ -148,6 +102,11 @@
             let frequencies = [];
             let startTime = Date.now();
 
+            // The A frequencies across the keyboard
+            const A3Frequency = 220.00;
+            const A4Frequency = 440.00;
+            const A5Frequency = 880.00;
+
             function detectPitch() {
                 analyser.getFloatTimeDomainData(buffer);
                 let sum = 0;
@@ -172,11 +131,10 @@
                 const sampleRate = audioContext.sampleRate;
                 const frequency = peakIndex * sampleRate / analyser.fftSize;
 
-                // Only keep frequencies close to Middle C (261.63Hz)
-                const middleCFrequency = 261.63;
-                if (Math.abs(frequency - middleCFrequency) < 5) {
-                    frequencies.push(frequency);
-                }
+                // Add frequencies close to the A notes to the frequencies array
+                if (Math.abs(frequency - A3Frequency) < 5) frequencies.push(frequency);
+                if (Math.abs(frequency - A4Frequency) < 5) frequencies.push(frequency);
+                if (Math.abs(frequency - A5Frequency) < 5) frequencies.push(frequency);
 
                 // Update progress bar for the 3-second duration
                 let elapsed = Date.now() - startTime;
@@ -208,8 +166,8 @@
 
         // Update the display with the tuning result
         function updateDisplay(frequency) {
-            const middleCFrequency = 261.63;  // Frequency of Middle C
-            const difference = frequency - middleCFrequency;
+            const A4Frequency = 440.00;  // Frequency of A4
+            const difference = frequency - A4Frequency;
             
             let message = `🎶 Detected Frequency: ${Math.round(frequency)} Hz`;
             let detune = difference % 100;
@@ -217,11 +175,11 @@
             else if (detune < -50) detune += 100;
 
             if (Math.abs(detune) < 5) {
-                message += "\n✅ Your Middle C is in tune!";
+                message += "\n✅ Your A notes are in tune!";
             } else if (detune > 5) {
-                message += "\n🔺 Your note is a bit sharp!";
+                message += "\n🔺 Your notes are a bit sharp!";
             } else {
-                message += "\n🔻 Your note is a bit flat!";
+                message += "\n🔻 Your notes are a bit flat!";
             }
 
             if (Math.abs(detune) > 20) {
