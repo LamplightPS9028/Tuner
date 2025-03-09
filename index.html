@@ -3,16 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Piano Tuner App</title>
-
+    <title>Piano Tuner</title>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
     <script src="https://halimb.github.io/simple-tuner/simple-tuner.js"></script>
-
     <style>
         body {
             font-family: Arial, sans-serif;
             padding: 20px;
             text-align: center;
+        }
+
+        #start-button, #measure-again-button {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        #start-button:hover, #measure-again-button:hover {
+            background-color: #45a049;
+        }
+
+        #feedback, #note {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
         }
 
         #progress-bar-container {
@@ -28,60 +46,22 @@
             height: 100%;
             background-color: green;
         }
-
-        #feedback {
-            margin-top: 20px;
-            font-size: 18px;
-        }
-
-        #result {
-            margin-top: 20px;
-            font-size: 20px;
-            font-weight: bold;
-        }
-
-        #start-button {
-            padding: 10px 20px;
-            font-size: 18px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-
-        #start-button:hover {
-            background-color: #45a049;
-        }
-
-        #measure-again-button {
-            display: none;
-            padding: 10px 20px;
-            font-size: 18px;
-            background-color: #f44336;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-
-        #measure-again-button:hover {
-            background-color: #e53935;
-        }
     </style>
 </head>
 <body>
 
     <h1>Piano Tuner</h1>
-    <p>Click "Start Measuring" to begin tuning.</p>
-
+    <p>Click "Start Measuring" to check your piano tuning.</p>
+    
     <button id="start-button">Start Measuring</button>
-    <button id="measure-again-button">Measure Again</button>
+    <button id="measure-again-button" style="display:none;">Measure Again</button>
 
     <div id="progress-bar-container">
         <div id="progress-bar"></div>
     </div>
 
+    <div id="note"></div>
     <div id="feedback"></div>
-    <div id="result"></div>
 
     <script>
         let audioContext, analyser, microphone;
@@ -90,7 +70,7 @@
         let progressBarContainer = document.getElementById('progress-bar-container');
         let progressBar = document.getElementById('progress-bar');
         let feedbackDisplay = document.getElementById('feedback');
-        let resultDisplay = document.getElementById('result');
+        let noteDisplay = document.getElementById('note');
         let isMeasuring = false;
 
         // Wait for the page to load before initializing the tuner
@@ -109,7 +89,7 @@
             startButton.style.display = 'none';
             measureAgainButton.style.display = 'none';
             feedbackDisplay.innerHTML = 'Starting the measurement...';
-            resultDisplay.innerHTML = '';
+            noteDisplay.innerHTML = '';
             progressBarContainer.style.display = 'block';
 
             navigator.mediaDevices.getUserMedia({ audio: true })
@@ -148,7 +128,6 @@
                     clearInterval(intervalId);
                     sampleInProgress = false;
                     feedbackDisplay.innerHTML = 'Measurement complete!';
-
                     // Process the sample data to detect pitch
                     analyseFrequency(sampleData);
                 }
@@ -210,7 +189,7 @@
             let closestNote = findClosestNoteName(pitch);
             let feedback = `Detected pitch: ${closestNote.name} (${pitch.toFixed(2)} Hz)`;
 
-            resultDisplay.innerHTML = feedback;
+            noteDisplay.innerHTML = feedback;
 
             // Provide feedback on tuning
             if (Math.abs(pitch - 440) < 5) {
@@ -255,7 +234,7 @@
             startButton.style.display = 'inline-block';
             measureAgainButton.style.display = 'none';
             feedbackDisplay.innerHTML = '';
-            resultDisplay.innerHTML = '';
+            noteDisplay.innerHTML = '';
             progressBar.style.width = '0%';
             progressBarContainer.style.display = 'none';
         }
