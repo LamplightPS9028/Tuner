@@ -69,14 +69,18 @@
     <button id="start-button">Enable Microphone</button>
 
     <script>
-        document.getElementById("start-button").addEventListener("click", async function() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                document.getElementById("start-button").style.display = "none";
-                startTuning(stream);
-            } catch (error) {
-                document.getElementById("status").innerText = "⚠️ Microphone access denied. Please enable it in your browser settings.";
-            }
+        document.getElementById("start-button").addEventListener("click", function() {
+            // Try to access the microphone and handle permission
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    // Hide the button once permissions are granted
+                    document.getElementById("start-button").style.display = "none";
+                    startTuning(stream);
+                })
+                .catch(error => {
+                    // Handle errors (e.g., user denies permission)
+                    document.getElementById("status").innerText = "⚠️ Microphone access denied. Please enable it in your browser settings.";
+                });
         });
 
         function startTuning(stream) {
@@ -159,4 +163,28 @@
             let needle = document.getElementById("needle");
             if (!needle) {
                 // If there's no needle, just show the message
-                document.getElementById("status").innerText = 
+                document.getElementById("status").innerText = message;
+            } else {
+                // Display the needle movement for the tuning (Optional)
+                let angle = detune * 1.8; // Scale for UI display
+                needle.style.transform = `rotate(${angle}deg)`;
+            }
+
+            if (Math.abs(detune) < 5) {
+                message += "\n✅ Your piano is perfectly in tune!";
+            } else if (detune > 5) {
+                message += "\n🔺 Your note is a bit sharp!";
+            } else {
+                message += "\n🔻 Your note is a bit flat!";
+            }
+
+            if (Math.abs(detune) > 20) {
+                message += "\n🎹 Time for a piano tuning!";
+            }
+
+            document.getElementById("status").innerText = message;
+        }
+    </script>
+
+</body>
+</html>
