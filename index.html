@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Piano Tuner</title>
+    <title>Piano Tuner - Middle C</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -52,153 +52,38 @@
         #microphone-button:hover {
             background-color: #218838;
         }
+        /* Style for the piano keyboard */
+        .piano {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+        }
+        .key {
+            width: 30px;
+            height: 150px;
+            background-color: white;
+            border: 1px solid black;
+            position: relative;
+            z-index: 1;
+        }
+        .black-key {
+            width: 20px;
+            height: 100px;
+            background-color: black;
+            position: absolute;
+            left: 20px;
+            z-index: 2;
+        }
+        .highlight {
+            background-color: #ff4500;
+        }
+        #middle-c {
+            background-color: #ff4500;
+        }
     </style>
 </head>
 <body>
 
     <h1>🎹 Piano Tuner</h1>
-    <p>Play a note, and we'll check if your piano is in tune.</p>
-    
-    <div id="progress-bar-container">
-        <div id="progress-bar"></div>
-    </div>
-
-    <button id="microphone-button">Enable Microphone</button>
-    
-    <p id="status">Click the button to enable microphone access.</p>
-
-    <script>
-        // Function to request microphone access
-        function requestMicrophonePermission() {
-            console.log("Requesting microphone access...");
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(stream => {
-                    console.log("Microphone access granted!");
-                    document.getElementById("status").innerText = "Microphone access granted. Start playing your note!";
-                    document.getElementById("microphone-button").style.display = 'none'; // Hide button once access granted
-                    startTuning(stream);
-                })
-                .catch(error => {
-                    console.log("Error accessing microphone:", error);
-                    if (error.name === 'NotAllowedError') {
-                        document.getElementById("status").innerText = "⚠️ Microphone access denied. Please enable it in your browser settings.";
-                    } else if (error.name === 'NotFoundError') {
-                        document.getElementById("status").innerText = "⚠️ No microphone found. Please connect a microphone.";
-                    } else {
-                        document.getElementById("status").innerText = "⚠️ Error accessing the microphone. Please try again.";
-                    }
-                });
-        }
-
-        // Start tuning function
-        function startTuning(stream) {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const analyser = audioContext.createAnalyser();
-            const microphone = audioContext.createMediaStreamSource(stream);
-            analyser.fftSize = 2048;
-            microphone.connect(analyser);
-            const buffer = new Float32Array(analyser.fftSize);
-
-            let frequencies = [];
-            let startTime = Date.now();
-
-            function detectPitch() {
-                analyser.getFloatTimeDomainData(buffer);
-                let sum = 0;
-                for (let i = 0; i < buffer.length; i++) {
-                    sum += buffer[i] * buffer[i];
-                }
-                let rms = Math.sqrt(sum / buffer.length);
-                if (rms < 0.01) {
-                    requestAnimationFrame(detectPitch);
-                    return;
-                }
-
-                let peakIndex = 0;
-                let maxVal = 0;
-                for (let i = 0; i < buffer.length; i++) {
-                    if (buffer[i] > maxVal) {
-                        maxVal = buffer[i];
-                        peakIndex = i;
-                    }
-                }
-
-                const sampleRate = audioContext.sampleRate;
-                const frequency = peakIndex * sampleRate / analyser.fftSize;
-
-                frequencies.push(frequency);
-
-                // Update progress bar for the 3-second duration
-                let elapsed = Date.now() - startTime;
-                let progress = Math.min((elapsed / 3000) * 100, 100);
-                document.getElementById("progress-bar").style.width = progress + '%';
-
-                if (elapsed >= 3000) {
-                    // Once 3 seconds are up, calculate the average frequency
-                    const averageFrequency = calculateAverage(frequencies);
-                    updateDisplay(averageFrequency);
-
-                    // Reset for the next sample
-                    startTime = Date.now();
-                    frequencies = [];
-                    document.getElementById("progress-bar").style.width = '0%';
-                }
-
-                requestAnimationFrame(detectPitch);
-            }
-
-            detectPitch();
-        }
-
-        // Calculate average frequency
-        function calculateAverage(frequencies) {
-            const sum = frequencies.reduce((acc, val) => acc + val, 0);
-            return sum / frequencies.length;
-        }
-
-        // Update the display with the tuning result
-        function updateDisplay(frequency) {
-            const standardA4 = 440;
-            const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-            const noteNumber = Math.round(12 * (Math.log2(frequency / standardA4))) + 49;
-            const noteName = noteNames[(noteNumber - 1) % 12];
-            const difference = 1200 * Math.log2(frequency / standardA4);
-            
-            let detune = difference % 100;
-            if (detune > 50) detune -= 100;
-            else if (detune < -50) detune += 100;
-
-            let message = `🎶 Note: ${noteName} (${Math.round(frequency)} Hz)`;
-
-            let needle = document.getElementById("needle");
-            if (!needle) {
-                // If there's no needle, just show the message
-                document.getElementById("status").innerText = message;
-            } else {
-                // Display the needle movement for the tuning (Optional)
-                let angle = detune * 1.8; // Scale for UI display
-                needle.style.transform = `rotate(${angle}deg)`;
-            }
-
-            if (Math.abs(detune) < 5) {
-                message += "\n✅ Your piano is perfectly in tune!";
-            } else if (detune > 5) {
-                message += "\n🔺 Your note is a bit sharp!";
-            } else {
-                message += "\n🔻 Your note is a bit flat!";
-            }
-
-            if (Math.abs(detune) > 20) {
-                message += "\n🎹 Time for a piano tuning!";
-            }
-
-            document.getElementById("status").innerText = message;
-        }
-
-        // Attach the requestMicrophonePermission function to the button click
-        document.getElementById("microphone-button").addEventListener("click", requestMicrophonePermission);
-
-    </script>
-
-</body>
-</html>
+    <p>Pl
