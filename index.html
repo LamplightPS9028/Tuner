@@ -142,15 +142,15 @@
             let frequency = 0;
             let maxMagnitude = 0;
 
-            // Find the peak in the frequency spectrum
             for (let i = 0; i < bufferLength; i++) {
                 let magnitude = dataArray[i];
+                let currentFrequency = (i * nyquist) / (bufferLength / 2);
+
                 if (magnitude > maxMagnitude) {
                     maxMagnitude = magnitude;
-                    frequency = i * nyquist / bufferLength;
+                    frequency = currentFrequency;
                 }
             }
-
             return frequency;
         }
 
