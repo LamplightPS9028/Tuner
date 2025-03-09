@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Piano Tuner</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin: 20px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        #gauge-container {
+            position: relative;
+            width: 300px;
+            height: 150px;
+            margin: 20px auto;
+            background: #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        #gauge {
+            position: absolute;
+            width: 10px;
+            height: 100%;
+            background: red;
+            left: 50%;
+            transform: translateX(-50%);
+            transition: left 0.2s ease-out;
+        }
+        #status {
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Piano Tuner</h1>
+    <p>Press "Start Tuning" and play a note on your piano.</p>
+    <button id="start-button">Start Tuning</button>
+    <div id="gauge-container">
+        <div id="gauge"></div>
+    </div>
+    <p id="status">Waiting for input...</p>
+
+    <script>
+        let audioContext, analyser, microphone, dataArray;
+
+        // Reference pitch frequencies for standard tuning (A440)
+        const referenceFrequencies = {
+            "A4": 440.00,
+            "C4": 261.63,
+            "E4": 329.63
+        };
+
+        function getNearestNote(frequency) {
+            let closestNote = null;
+            let minDifference = Infinity;
+
+  
