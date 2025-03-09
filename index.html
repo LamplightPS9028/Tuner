@@ -8,35 +8,36 @@
         body {
             font-family: Arial, sans-serif;
             text-align: center;
+            background-color: white; /* White background */
+            margin: 0;
             padding: 20px;
         }
-        .gauge-container {
+        h1 {
+            margin-bottom: 10px;
+        }
+        #gauge {
             width: 300px;
             height: 150px;
-            position: relative;
             margin: 20px auto;
+            position: relative;
         }
-        .gauge {
-            width: 100%;
-            height: 100%;
-        }
-        .needle {
+        #needle {
             width: 4px;
-            height: 80px;
-            background: red;
+            height: 100px;
+            background-color: red;
             position: absolute;
-            bottom: 10px;
             left: 50%;
-            transform-origin: bottom;
+            bottom: 0;
+            transform-origin: bottom center;
             transform: rotate(0deg);
+            transition: transform 0.1s ease-out;
         }
-        .status {
+        #status {
             font-size: 20px;
-            margin-top: 10px;
+            margin-top: 20px;
         }
-        .error {
+        #error-message {
             color: red;
-            font-size: 18px;
             font-weight: bold;
         }
     </style>
@@ -44,89 +45,98 @@
 <body>
 
     <h1>Piano Tuner</h1>
-    <p>Play a note on your piano, and this tool will determine if it's in tune.</p>
+    <p>Play a note on your piano, and we'll check if it's in tune.</p>
     
-    <div class="gauge-container">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/8/8d/Analog_gauge_meter.svg" class="gauge">
-        <div class="needle" id="needle"></div>
+    <div id="gauge">
+        <div id="needle"></div>
     </div>
     
-    <p class="status" id="status">Listening...</p>
-    <p class="error" id="error-message"></p>
+    <p id="status">Listening...</p>
+    <p id="error-message"></p>
 
     <script>
-        const noteFrequencies = {
-            "A4": 440.00, "A#4": 466.16, "B4": 493.88, "C4": 261.63, "C#4": 277.18, "D4": 293.66,
-            "D#4": 311.13, "E4": 329.63, "F4": 349.23, "F#4": 369.99, "G4": 392.00, "G#4": 415.30
-        };
-
-        let audioContext, analyser, microphone, dataArray;
-
-        async function startTuning() {
+        async function requestMicAccess() {
             try {
-                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    throw new Error("Microphone access is not supported on this device.");
-                }
-
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 2048;
-
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                microphone = audioContext.createMediaStreamSource(stream);
-                microphone.connect(analyser);
-
-                dataArray = new Uint8Array(analyser.frequencyBinCount);
-                detectPitch();
+                startTuning(stream);
             } catch (error) {
-                document.getElementById("error-message").innerText = error.message;
-                document.getElementById("status").innerText = "Microphone access failed.";
+                document.getElementById("error-message").innerText = "Microphone access denied. Please enable it in your browser settings.";
             }
         }
 
-        function detectPitch() {
-            analyser.getByteFrequencyData(dataArray);
-            let maxIndex = dataArray.indexOf(Math.max(...dataArray));
-            let frequency = maxIndex * audioContext.sampleRate / analyser.fftSize;
+        // Request mic access automatically after user interaction (fixes Safari)
+        document.addEventListener("click", requestMicAccess, { once: true });
 
-            let closestNote = findClosestNote(frequency);
-            if (closestNote) {
-                let noteFreq = noteFrequencies[closestNote];
-                let difference = frequency - noteFreq;
+        function startTuning(stream) {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const analyser = audioContext.createAnalyser();
+            const microphone = audioContext.createMediaStreamSource(stream);
+            analyser.fftSize = 2048;
+            microphone.connect(analyser);
+            const buffer = new Float32Array(analyser.fftSize);
 
-                let needle = document.getElementById("needle");
-                let statusText = document.getElementById("status");
-
-                if (Math.abs(difference) < 2) {
-                    needle.style.transform = "rotate(0deg)";
-                    statusText.innerText = `${closestNote} is in tune! ✅`;
-                } else if (difference > 0) {
-                    needle.style.transform = "rotate(20deg)";
-                    statusText.innerText = `${closestNote} is sharp. Tune it down. 🔽`;
-                } else {
-                    needle.style.transform = "rotate(-20deg)";
-                    statusText.innerText = `${closestNote} is flat. Tune it up. 🔼`;
+            function detectPitch() {
+                analyser.getFloatTimeDomainData(buffer);
+                let sum = 0;
+                for (let i = 0; i < buffer.length; i++) {
+                    sum += buffer[i] * buffer[i];
                 }
-            }
-
-            requestAnimationFrame(detectPitch);
-        }
-
-        function findClosestNote(frequency) {
-            let closestNote = null;
-            let minDiff = Infinity;
-            for (let note in noteFrequencies) {
-                let diff = Math.abs(frequency - noteFrequencies[note]);
-                if (diff < minDiff) {
-                    minDiff = diff;
-                    closestNote = note;
+                let rms = Math.sqrt(sum / buffer.length);
+                if (rms < 0.01) {
+                    requestAnimationFrame(detectPitch);
+                    return;
                 }
+
+                let peakIndex = 0;
+                let maxVal = 0;
+                for (let i = 0; i < buffer.length; i++) {
+                    if (buffer[i] > maxVal) {
+                        maxVal = buffer[i];
+                        peakIndex = i;
+                    }
+                }
+
+                const sampleRate = audioContext.sampleRate;
+                const frequency = peakIndex * sampleRate / analyser.fftSize;
+                updateDisplay(frequency);
+                requestAnimationFrame(detectPitch);
             }
-            return closestNote;
+
+            detectPitch();
         }
 
-        // Start immediately after page loads
-        startTuning();
+        function updateDisplay(frequency) {
+            const standardA4 = 440;
+            const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+            const noteNumber = Math.round(12 * (Math.log2(frequency / standardA4))) + 49;
+            const noteName = noteNames[(noteNumber - 1) % 12];
+            const difference = 1200 * Math.log2(frequency / standardA4);
+            
+            let detune = difference % 100;
+            if (detune > 50) detune -= 100;
+            else if (detune < -50) detune += 100;
+
+            document.getElementById("status").innerText = `Note: ${noteName} (${Math.round(frequency)} Hz)`;
+
+            let needle = document.getElementById("needle");
+            let angle = detune * 1.8; // Scale for UI display
+            needle.style.transform = `rotate(${angle}deg)`;
+
+            let message = "";
+            if (Math.abs(detune) < 5) {
+                message = "✅ Your piano is in tune!";
+            } else if (detune > 5) {
+                message = "🔺 Your note is sharp!";
+            } else {
+                message = "🔻 Your note is flat!";
+            }
+
+            if (Math.abs(detune) > 20) {
+                message += " 🎹 Consider getting your piano tuned!";
+            }
+
+            document.getElementById("status").innerText = message;
+        }
     </script>
 
 </body>
