@@ -54,17 +54,27 @@
     <p id="status">Requesting microphone access...</p>
 
     <script>
-        // Request microphone access as soon as the page loads
-        navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(stream => {
-                // Start tuning once microphone access is granted
-                startTuning(stream);
-            })
-            .catch(error => {
-                // Handle errors (e.g., user denies permission)
-                document.getElementById("status").innerText = "⚠️ Microphone access denied. Please enable it in your browser settings.";
-            });
+        // Function to request microphone access and start tuning
+        function requestMicrophonePermission() {
+            // Request microphone access
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    // Start tuning once microphone access is granted
+                    startTuning(stream);
+                })
+                .catch(error => {
+                    // Handle errors (e.g., user denies permission)
+                    if (error.name === 'NotAllowedError') {
+                        document.getElementById("status").innerText = "⚠️ Microphone access denied. Please enable it in your browser settings.";
+                    } else if (error.name === 'NotFoundError') {
+                        document.getElementById("status").innerText = "⚠️ No microphone found. Please connect a microphone.";
+                    } else {
+                        document.getElementById("status").innerText = "⚠️ Error accessing the microphone. Please try again.";
+                    }
+                });
+        }
 
+        // Start tuning function
         function startTuning(stream) {
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const analyser = audioContext.createAnalyser();
@@ -118,4 +128,11 @@
                     document.getElementById("progress-bar").style.width = '0%';
                 }
 
-    
+                requestAnimationFrame(detectPitch);
+            }
+
+            detectPitch();
+        }
+
+        // Calculate average frequency
+        function
