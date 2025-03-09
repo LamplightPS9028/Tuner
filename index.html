@@ -1,244 +1,105 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="author" content="Abdel Halim Bouguedra">
+    <meta name="viewport" content="width=device-width minimum-scale=1 maximum-scale=1">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" type="text/css" href="style.css">
     <title>Piano Tuner</title>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
-    <script src="https://halimb.github.io/simple-tuner/simple-tuner.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            text-align: center;
-        }
-
-        #start-button, #measure-again-button {
-            padding: 10px 20px;
-            font-size: 18px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            cursor: pointer;
-            margin-top: 20px;
-        }
-
-        #start-button:hover, #measure-again-button:hover {
-            background-color: #45a049;
-        }
-
-        #feedback, #note {
-            margin-top: 20px;
-            font-size: 18px;
-            font-weight: bold;
-        }
-
-        #progress-bar-container {
-            width: 100%;
-            height: 20px;
-            background-color: #f3f3f3;
-            margin-top: 20px;
-            display: none;
-        }
-
-        #progress-bar {
-            width: 0;
-            height: 100%;
-            background-color: green;
-        }
-    </style>
 </head>
+
 <body>
+    <div id="display" class="display"><span style="font-size: 150%;">♪</span></div>
+    <div id="frequency" class="frequency"></div>
+    <div id="note-info" class="note-info"></div>
+    <div id="tuning-feedback" class="tuning-feedback"></div>
 
-    <h1>Piano Tuner</h1>
-    <p>Click "Start Measuring" to check your piano tuning.</p>
-    
-    <button id="start-button">Start Measuring</button>
-    <button id="measure-again-button" style="display:none;">Measure Again</button>
+    <canvas id="canvas" class="cnv"></canvas>
+    <canvas id="visualization" class="visualization"></canvas>
 
-    <div id="progress-bar-container">
-        <div id="progress-bar"></div>
-    </div>
-
-    <div id="note"></div>
-    <div id="feedback"></div>
-
+    <script src="lib/wad.js"></script>
     <script>
-        let audioContext, analyser, microphone;
-        let startButton = document.getElementById('start-button');
-        let measureAgainButton = document.getElementById('measure-again-button');
-        let progressBarContainer = document.getElementById('progress-bar-container');
-        let progressBar = document.getElementById('progress-bar');
-        let feedbackDisplay = document.getElementById('feedback');
-        let noteDisplay = document.getElementById('note');
-        let isMeasuring = false;
+        // Constants for tuning frequency ranges
+        const A4_FREQUENCY = 440; // A4 frequency in Hz
+        const SEMITONE_RATIO = Math.pow(2, 1 / 12); // Frequency ratio between adjacent semitones
 
-        // Wait for the page to load before initializing the tuner
-        window.addEventListener('load', init_tuner, false);
+        const NOTE_NAMES = [
+            "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
+        ];
 
-        function init_tuner() {
-            startButton.addEventListener('click', startMeasuring);
-            measureAgainButton.addEventListener('click', resetApp);
+        // Function to calculate the note name based on frequency
+        function getNoteFromFrequency(frequency) {
+            const noteIndex = Math.round(12 * Math.log2(frequency / A4_FREQUENCY)) % 12;
+            return NOTE_NAMES[(noteIndex + 12) % 12];
         }
 
-        // Start the measuring process
-        function startMeasuring() {
-            if (isMeasuring) return;
+        // Function to calculate the deviation from the ideal frequency
+        function calculateDeviation(frequency, idealFrequency) {
+            return Math.abs(frequency - idealFrequency);
+        }
 
-            isMeasuring = true;
-            startButton.style.display = 'none';
-            measureAgainButton.style.display = 'none';
-            feedbackDisplay.innerHTML = 'Starting the measurement...';
-            noteDisplay.innerHTML = '';
-            progressBarContainer.style.display = 'block';
+        // Function to check if the piano note is in tune
+        function checkTuning(frequency, note) {
+            const noteFrequency = A4_FREQUENCY * Math.pow(SEMITONE_RATIO, NOTE_NAMES.indexOf(note) - 9); // Calculate ideal frequency for note
+            const deviation = calculateDeviation(frequency, noteFrequency);
 
+            let feedbackMessage = `Note: ${note}\nFrequency: ${frequency.toFixed(2)} Hz`;
+            if (deviation <= 1) {
+                feedbackMessage += "\nThis note is in tune! 🎵";
+            } else {
+                feedbackMessage += `\nThis note is slightly off-tune. Please call a piano tuner if the difference is significant.`;
+            }
+
+            document.getElementById("tuning-feedback").innerText = feedbackMessage;
+        }
+
+        // Function to get microphone input and analyze pitch
+        function startTuning() {
             navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(function(stream) {
-                    // Set up the audio context and analyser
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    analyser = audioContext.createAnalyser();
-                    analyser.fftSize = 2048;
-                    microphone = audioContext.createMediaStreamSource(stream);
+                .then(function (stream) {
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const analyser = audioContext.createAnalyser();
+                    const microphone = audioContext.createMediaStreamSource(stream);
                     microphone.connect(analyser);
+                    analyser.fftSize = 2048;
 
-                    // Start capturing audio and process it
-                    startAudioMeasurement();
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+
+                    function detectPitch() {
+                        analyser.getByteFrequencyData(dataArray);
+
+                        let maxAmplitude = 0;
+                        let dominantFrequency = 0;
+                        for (let i = 0; i < bufferLength; i++) {
+                            if (dataArray[i] > maxAmplitude) {
+                                maxAmplitude = dataArray[i];
+                                dominantFrequency = i * audioContext.sampleRate / analyser.fftSize;
+                            }
+                        }
+
+                        const note = getNoteFromFrequency(dominantFrequency);
+                        document.getElementById("note-info").innerText = `Detected Note: ${note}`;
+                        document.getElementById("frequency").innerText = `Frequency: ${dominantFrequency.toFixed(2)} Hz`;
+
+                        checkTuning(dominantFrequency, note);
+
+                        requestAnimationFrame(detectPitch);
+                    }
+
+                    detectPitch();
                 })
-                .catch(function(err) {
-                    feedbackDisplay.innerHTML = 'Error accessing microphone: ' + err.message;
+                .catch(function (err) {
+                    console.error('Error accessing microphone: ', err);
+                    alert("Error accessing the microphone. Please grant permission.");
                 });
         }
 
-        // Process the microphone input
-        function startAudioMeasurement() {
-            let sampleDuration = 4000; // 4 seconds
-            let sampleInterval = 50; // Check every 50ms
-
-            let startTime = Date.now();
-            let sampleData = [];
-            let sampleInProgress = true;
-
-            // Update the progress bar
-            let intervalId = setInterval(function() {
-                let elapsedTime = Date.now() - startTime;
-                let progress = Math.min(elapsedTime / sampleDuration * 100, 100);
-                progressBar.style.width = progress + '%';
-
-                if (elapsedTime >= sampleDuration) {
-                    clearInterval(intervalId);
-                    sampleInProgress = false;
-                    feedbackDisplay.innerHTML = 'Measurement complete!';
-                    // Process the sample data to detect pitch
-                    analyseFrequency(sampleData);
-                }
-            }, sampleInterval);
-
-            // Capture audio data
-            let captureInterval = setInterval(function() {
-                if (sampleInProgress) {
-                    let bufferLength = analyser.fftSize;
-                    let frequencyData = new Uint8Array(bufferLength);
-                    analyser.getByteFrequencyData(frequencyData);
-
-                    sampleData.push(frequencyData);
-                } else {
-                    clearInterval(captureInterval);
-                }
-            }, sampleInterval);
-        }
-
-        // Analyse the frequency data from the sample
-        function analyseFrequency(sampleData) {
-            let totalPitch = 0;
-            let noteCount = 0;
-
-            // Go through the collected frequency data and calculate the average pitch
-            sampleData.forEach(function(data) {
-                let peak = Math.max(...data);
-                let note = pitchFromFrequency(peak);
-                if (note) {
-                    totalPitch += note.frequency;
-                    noteCount++;
-                }
-            });
-
-            if (noteCount > 0) {
-                let avgPitch = totalPitch / noteCount;
-                displayResults(avgPitch);
-            } else {
-                feedbackDisplay.innerHTML = 'No clear pitch detected. Try again.';
-                progressBarContainer.style.display = 'none';
-                measureAgainButton.style.display = 'inline-block';
-            }
-        }
-
-        // Convert frequency to a note (simple version)
-        function pitchFromFrequency(frequency) {
-            const A4 = 440;
-            const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-            let halfSteps = Math.round(12 * Math.log2(frequency / A4));
-            let noteIndex = (halfSteps + 48) % 12;
-            let octave = Math.floor((halfSteps + 48) / 12);
-            let noteName = noteNames[noteIndex];
-            let note = { name: noteName + octave, frequency: frequency };
-            return note;
-        }
-
-        // Display results based on the detected pitch
-        function displayResults(pitch) {
-            let closestNote = findClosestNoteName(pitch);
-            let feedback = `Detected pitch: ${closestNote.name} (${pitch.toFixed(2)} Hz)`;
-
-            noteDisplay.innerHTML = feedback;
-
-            // Provide feedback on tuning
-            if (Math.abs(pitch - 440) < 5) {
-                feedbackDisplay.innerHTML = "Your piano is in tune!";
-            } else {
-                feedbackDisplay.innerHTML = "Your piano needs to be tuned!";
-            }
-
-            progressBarContainer.style.display = 'none';
-            measureAgainButton.style.display = 'inline-block';
-        }
-
-        // Find the closest piano note from a frequency
-        function findClosestNoteName(frequency) {
-            let closestNote = null;
-            let closestDistance = Infinity;
-
-            // Basic piano note frequencies (some examples)
-            let pianoNoteFrequencies = {
-                "A0": 27.5, "A#0": 29.135, "B0": 30.868,
-                "C1": 32.703, "C#1": 34.648, "D1": 36.708, "D#1": 38.891, "E1": 41.203,
-                "F1": 43.654, "F#1": 46.249, "G1": 48.999, "G#1": 51.913,
-                // Add more notes here...
-                "A4": 440.0, // The A4 note (440Hz)
-            };
-
-            for (let note in pianoNoteFrequencies) {
-                let noteFreq = pianoNoteFrequencies[note];
-                let distance = Math.abs(frequency - noteFreq);
-
-                if (distance < closestDistance) {
-                    closestDistance = distance;
-                    closestNote = { name: note, frequency: noteFreq };
-                }
-            }
-
-            return closestNote;
-        }
-
-        // Reset the app and allow the user to measure again
-        function resetApp() {
-            startButton.style.display = 'inline-block';
-            measureAgainButton.style.display = 'none';
-            feedbackDisplay.innerHTML = '';
-            noteDisplay.innerHTML = '';
-            progressBar.style.width = '0%';
-            progressBarContainer.style.display = 'none';
-        }
+        // Start the tuner
+        startTuning();
     </script>
-
 </body>
+
 </html>
