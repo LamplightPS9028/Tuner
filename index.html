@@ -49,6 +49,23 @@
             color: #888;
             margin-top: 10px;
         }
+        .button-container {
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #startBtn, #measureAgainBtn {
+            background-color: #76c7c0;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        #measureAgainBtn {
+            background-color: #e0e0e0;
+        }
     </style>
 </head>
 <body>
@@ -62,6 +79,9 @@
         <div id="noteDisplay"></div>
         <div id="result"></div>
         <div id="feedback"></div>
+        <div class="button-container">
+            <button id="measureAgainBtn" style="display: none;">Measure Again</button>
+        </div>
     </div>
 
     <script>
@@ -69,6 +89,7 @@
         let analyser;
         let microphone;
         let startBtn = document.getElementById("startBtn");
+        let measureAgainBtn = document.getElementById("measureAgainBtn");
         let progressBar = document.getElementById("progressBar");
         let noteDisplay = document.getElementById("noteDisplay");
         let resultDisplay = document.getElementById("result");
@@ -93,6 +114,12 @@
             if (isListening) return;
             isListening = true;
             startBtn.disabled = true;
+            await startMicrophone();
+            startListening();
+        });
+
+        measureAgainBtn.addEventListener('click', async () => {
+            measureAgainBtn.style.display = 'none';
             await startMicrophone();
             startListening();
         });
@@ -122,14 +149,11 @@
                     return;
                 }
 
-                let bufferLength = analyser.frequencyBinCount;
-                let dataArray = new Uint8Array(bufferLength);
-                analyser.getByteFrequencyData(dataArray);
-                let frequency = getFundamentalFrequency(dataArray, bufferLength);
-
-                buffer.push(frequency);
-                let progress = (Date.now() - startTime) / sampleDuration * 100;
-                progressBar.style.width = `${progress}%`;
+                let frequency = getFrequencyFromAudio();
+                if (frequency) {
+                    buffer.push(frequency);
+                    updateProgressBar(Date.now() - startTime);
+                }
 
                 requestAnimationFrame(processAudio);
             }
@@ -137,21 +161,13 @@
             processAudio();
         }
 
-        function getFundamentalFrequency(dataArray, bufferLength) {
-            let nyquist = audioContext.sampleRate / 2;
-            let frequency = 0;
-            let maxMagnitude = 0;
+        function getFrequencyFromAudio() {
+            let bufferLength = analyser.frequencyBinCount;
+            let buffer = new Float32Array(bufferLength);
+            analyser.getFloatFrequencyData(buffer);
 
-            for (let i = 0; i < bufferLength; i++) {
-                let magnitude = dataArray[i];
-                let currentFrequency = (i * nyquist) / (bufferLength / 2);
-
-                if (magnitude > maxMagnitude) {
-                    maxMagnitude = magnitude;
-                    frequency = currentFrequency;
-                }
-            }
-
+            let maxIndex = buffer.indexOf(Math.max(...buffer));
+            let frequency = maxIndex * audioContext.sampleRate / analyser.fftSize;
             return frequency;
         }
 
@@ -182,6 +198,12 @@
             noteDisplay.textContent = `Note: ${note}`;
             resultDisplay.textContent = `Frequency: ${frequency.toFixed(2)} Hz`;
             feedbackDisplay.textContent = "Great! Check your tuning.";
+            measureAgainBtn.style.display = 'block';
+        }
+
+        function updateProgressBar(timeElapsed) {
+            let percentage = (timeElapsed / sampleDuration) * 100;
+            progressBar.style.width = `${percentage}%`;
         }
     </script>
 </body>
