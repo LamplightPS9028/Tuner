@@ -40,20 +40,6 @@
             font-weight: bold;
             margin-top: 20px;
         }
-        #start-button {
-            background-color: #007BFF;
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            font-size: 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 20px;
-            display: inline-block;
-        }
-        #start-button:hover {
-            background-color: #0056b3;
-        }
     </style>
 </head>
 <body>
@@ -65,23 +51,19 @@
         <div id="progress-bar"></div>
     </div>
     
-    <p id="status">Click to start listening for a note...</p>
-    <button id="start-button">Enable Microphone</button>
+    <p id="status">Requesting microphone access...</p>
 
     <script>
-        document.getElementById("start-button").addEventListener("click", function() {
-            // Try to access the microphone and handle permission
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(stream => {
-                    // Hide the button once permissions are granted
-                    document.getElementById("start-button").style.display = "none";
-                    startTuning(stream);
-                })
-                .catch(error => {
-                    // Handle errors (e.g., user denies permission)
-                    document.getElementById("status").innerText = "⚠️ Microphone access denied. Please enable it in your browser settings.";
-                });
-        });
+        // Request microphone access as soon as the page loads
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                // Start tuning once microphone access is granted
+                startTuning(stream);
+            })
+            .catch(error => {
+                // Handle errors (e.g., user denies permission)
+                document.getElementById("status").innerText = "⚠️ Microphone access denied. Please enable it in your browser settings.";
+            });
 
         function startTuning(stream) {
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -136,55 +118,4 @@
                     document.getElementById("progress-bar").style.width = '0%';
                 }
 
-                requestAnimationFrame(detectPitch);
-            }
-
-            detectPitch();
-        }
-
-        function calculateAverage(frequencies) {
-            const sum = frequencies.reduce((acc, val) => acc + val, 0);
-            return sum / frequencies.length;
-        }
-
-        function updateDisplay(frequency) {
-            const standardA4 = 440;
-            const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-            const noteNumber = Math.round(12 * (Math.log2(frequency / standardA4))) + 49;
-            const noteName = noteNames[(noteNumber - 1) % 12];
-            const difference = 1200 * Math.log2(frequency / standardA4);
-            
-            let detune = difference % 100;
-            if (detune > 50) detune -= 100;
-            else if (detune < -50) detune += 100;
-
-            let message = `🎶 Note: ${noteName} (${Math.round(frequency)} Hz)`;
-
-            let needle = document.getElementById("needle");
-            if (!needle) {
-                // If there's no needle, just show the message
-                document.getElementById("status").innerText = message;
-            } else {
-                // Display the needle movement for the tuning (Optional)
-                let angle = detune * 1.8; // Scale for UI display
-                needle.style.transform = `rotate(${angle}deg)`;
-            }
-
-            if (Math.abs(detune) < 5) {
-                message += "\n✅ Your piano is perfectly in tune!";
-            } else if (detune > 5) {
-                message += "\n🔺 Your note is a bit sharp!";
-            } else {
-                message += "\n🔻 Your note is a bit flat!";
-            }
-
-            if (Math.abs(detune) > 20) {
-                message += "\n🎹 Time for a piano tuning!";
-            }
-
-            document.getElementById("status").innerText = message;
-        }
-    </script>
-
-</body>
-</html>
+    
