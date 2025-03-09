@@ -1,210 +1,181 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Piano Tune Check</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .container {
-            text-align: center;
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-        h1 {
-            font-size: 24px;
-            margin-bottom: 20px;
-        }
-        #noteDisplay {
-            font-size: 36px;
-            margin-top: 20px;
-        }
-        .progress-bar-container {
-            width: 100%;
-            height: 10px;
-            background-color: #e0e0e0;
-            margin-top: 20px;
-        }
-        .progress-bar {
-            height: 100%;
-            background-color: #76c7c0;
-            width: 0%;
-        }
-        #result {
-            font-size: 18px;
-            margin-top: 20px;
-        }
-        #feedback {
-            font-size: 18px;
-            color: #888;
-            margin-top: 10px;
-        }
-        .button-container {
-            margin-top: 20px;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        #startBtn, #measureAgainBtn {
-            background-color: #76c7c0;
-            color: white;
-            border: none;
-            border-radius: 5px;
-        }
-        #measureAgainBtn {
-            background-color: #e0e0e0;
-        }
-    </style>
+	<meta charset="UTF-8">
+	<title>Tuner</title>
+
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+	<script>
+
+	// Wait for the page to load before initializing the tuner
+	window.addEventListener('load', init_tuner, false);
+
+	// Global variables
+	let audioContext, analyser, microphone;
+	let noteDisplay, frequencyDisplay, tuningDisplay, waveformCanvas, barGraphCanvas;
+
+	// Function to initialize the tuner
+	function init_tuner() {
+		// Set up the Web Audio API context and the analyser
+		audioContext = new (window.AudioContext || window.webkitAudioContext)();
+		analyser = audioContext.createAnalyser();
+		noteDisplay = document.querySelector('.tuner-data.note');
+		frequencyDisplay = document.querySelector('.tuner-data.frequency');
+		tuningDisplay = document.querySelector('.tuner-data.tuning');
+		waveformCanvas = document.getElementById('waveform');
+		barGraphCanvas = document.getElementById('bargraph');
+
+		// Get access to the microphone
+		navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+			microphone = audioContext.createMediaStreamSource(stream);
+			microphone.connect(analyser);
+			analyser.fftSize = 2048;
+			loop();
+		}).catch(function(err) {
+			console.log('Error accessing microphone: ' + err);
+		});
+	}
+
+	// Function to loop and process the audio data
+	function loop() {
+		const bufferLength = analyser.frequencyBinCount;
+		const dataArray = new Uint8Array(bufferLength);
+		const canvasCtx = waveformCanvas.getContext('2d');
+		const barCanvasCtx = barGraphCanvas.getContext('2d');
+
+		analyser.getByteFrequencyData(dataArray);
+
+		// Draw waveform
+		canvasCtx.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+		canvasCtx.beginPath();
+		const sliceWidth = waveformCanvas.width * 1.0 / bufferLength;
+		let x = 0;
+		for (let i = 0; i < bufferLength; i++) {
+			const v = dataArray[i] / 128.0; // Scale to 0-1
+			const y = v * waveformCanvas.height / 2;
+			if (i === 0) {
+				canvasCtx.moveTo(x, y);
+			} else {
+				canvasCtx.lineTo(x, y);
+			}
+			x += sliceWidth;
+		}
+		canvasCtx.lineTo(waveformCanvas.width, waveformCanvas.height / 2);
+		canvasCtx.stroke();
+
+		// Draw bar graph
+		barCanvasCtx.clearRect(0, 0, barGraphCanvas.width, barGraphCanvas.height);
+		const barWidth = barGraphCanvas.width / bufferLength;
+		for (let i = 0; i < bufferLength; i++) {
+			const barHeight = dataArray[i];
+			barCanvasCtx.fillStyle = 'rgb(' + (barHeight + 100) + ',50,50)';
+			barCanvasCtx.fillRect(i * barWidth, barGraphCanvas.height - barHeight, barWidth, barHeight);
+		}
+
+		// Pitch detection
+		detectPitch(dataArray);
+
+		// Request next animation frame
+		requestAnimationFrame(loop);
+	}
+
+	// Function to detect the pitch from frequency data
+	function detectPitch(dataArray) {
+		const bufferLength = dataArray.length;
+		let maxIndex = -1;
+		let maxValue = -1;
+		for (let i = 0; i < bufferLength; i++) {
+			if (dataArray[i] > maxValue) {
+				maxValue = dataArray[i];
+				maxIndex = i;
+			}
+		}
+
+		// Calculate frequency of the detected pitch
+		const nyquist = audioContext.sampleRate / 2;
+		const frequency = maxIndex * nyquist / (bufferLength / 2);
+
+		// Display frequency and note information
+		frequencyDisplay.textContent = frequency.toFixed(2) + ' Hz';
+
+		const noteInfo = getPianoNoteFromFrequency(frequency);
+		noteDisplay.textContent = noteInfo.note;
+		tuningDisplay.textContent = noteInfo.tuning;
+
+	}
+
+	// Convert frequency to piano note
+	function getPianoNoteFromFrequency(frequency) {
+		const A440 = 440; // Frequency of A4 in Hz
+		const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+		const noteIndex = Math.round(12 * Math.log(frequency / A440) / Math.log(2));
+		const octave = Math.floor(noteIndex / 12) + 4; // Assume A4 is in octave 4
+		const note = noteNames[(noteIndex + 120) % 12]; // Get the note name
+		const tuning = (frequency - A440) > 0 ? 'Sharp' : 'Flat';
+
+		return { note: note + octave, tuning: tuning };
+	}
+	</script>
+
 </head>
 <body>
-    <div class="container">
-        <h1>Piano Tune Check</h1>
-        <p>Play a note on your piano and we’ll check if it’s in tune!</p>
-        <button id="startBtn">Start Listening</button>
-        <div class="progress-bar-container">
-            <div id="progressBar" class="progress-bar"></div>
-        </div>
-        <div id="noteDisplay"></div>
-        <div id="result"></div>
-        <div id="feedback"></div>
-        <div class="button-container">
-            <button id="measureAgainBtn" style="display: none;">Measure Again</button>
-        </div>
-    </div>
 
-    <script>
-        let audioContext;
-        let analyser;
-        let microphone;
-        let startBtn = document.getElementById("startBtn");
-        let measureAgainBtn = document.getElementById("measureAgainBtn");
-        let progressBar = document.getElementById("progressBar");
-        let noteDisplay = document.getElementById("noteDisplay");
-        let resultDisplay = document.getElementById("result");
-        let feedbackDisplay = document.getElementById("feedback");
-        let isListening = false;
-        let sampleDuration = 5000; // 5 seconds
-        let notesFrequencyMap = {
-            "A0": 27.5, "A#0": 29.14, "B0": 30.87, "C1": 32.70, "C#1": 34.65, "D1": 36.71, "D#1": 38.89, "E1": 41.20,
-            "F1": 43.65, "F#1": 46.25, "G1": 49.00, "G#1": 51.91, "A1": 55.00, "A#1": 58.27, "B1": 61.74, "C2": 65.41,
-            "C#2": 69.30, "D2": 73.42, "D#2": 77.78, "E2": 82.41, "F2": 87.31, "F#2": 92.50, "G2": 98.00, "G#2": 103.83,
-            "A2": 110.00, "A#2": 116.54, "B2": 123.47, "C3": 130.81, "C#3": 138.59, "D3": 146.83, "D#3": 155.56, "E3": 164.81,
-            "F3": 174.61, "F#3": 185.00, "G3": 196.00, "G#3": 207.65, "A3": 220.00, "A#3": 233.08, "B3": 246.94, "C4": 261.63,
-            "C#4": 277.18, "D4": 293.66, "D#4": 311.13, "E4": 329.63, "F4": 349.23, "F#4": 369.99, "G4": 392.00, "G#4": 415.30,
-            "A4": 440.00, "A#4": 466.16, "B4": 493.88, "C5": 523.25, "C#5": 554.37, "D5": 587.33, "D#5": 622.25, "E5": 659.26,
-            "F5": 698.46, "F#5": 739.99, "G5": 783.99, "G#5": 830.61, "A5": 880.00, "A#5": 932.33, "B5": 987.77, "C6": 1046.50,
-            "C#6": 1108.73, "D6": 1174.66, "D#6": 1244.51, "E6": 1318.51, "F6": 1396.91, "F#6": 1479.98, "G6": 1567.98, "G#6": 1661.22,
-            "A6": 1760.00, "A#6": 1864.66, "B6": 1975.53, "C7": 2093.00, "C#7": 2217.46, "D7": 2349.32, "D#7": 2489.02, "E7": 2637.02,
-            "F7": 2793.83, "F#7": 2959.96, "G7": 3135.96, "G#7": 3322.44, "A7": 3520.00, "A#7": 3729.31, "B7": 3951.07, "C8": 4186.01
-        };
+	<div class="tuner tuner-ui-debug">
+		<h2>Tuner Settings</h2>
+		<table>
+			<tbody>
+				<tr>
+					<td><strong>Base Frequency</strong></td>
+					<td class="tuner-data base-frequency">--</td>
+				</tr>
+				<tr>
+					<td><strong>Instrument</strong></td>
+					<td class="tuner-data instrument">--</td>
+				</tr>
+				<tr>
+					<td><strong>Tuning</strong></td>
+					<td class="tuner-data tuning">--</td>
+				</tr>
+				<tr>
+					<td><strong>Tuning information</strong></td>
+					<td class="tuner-data tuning-info">--</td>
+				</tr>
+			</tbody>
+		</table>
 
-        startBtn.addEventListener('click', async () => {
-            if (isListening) return;
-            isListening = true;
-            startBtn.disabled = true;
-            await startMicrophone();
-            startListening();
-        });
+		<h2>Frequency Information</h2>
+		<table>
+			<tbody>
+				<tr>
+					<td><strong>Frequency (Hz)</strong></td>
+					<td class="tuner-data frequency">--</td>
+				</tr>
+				<tr>
+					<td><strong>Note</strong></td>
+					<td class="tuner-data note">--</td>
+				</tr>
+				<tr>
+					<td><strong>Tuning</strong></td>
+					<td class="tuner-data tuning">--</td>
+				</tr>
+			</tbody>
+		</table>
 
-        measureAgainBtn.addEventListener('click', async () => {
-            measureAgainBtn.style.display = 'none';
-            await startMicrophone();
-            startListening();
-        });
+		<h2>Signal Information</h2>
+		<table>
+			<tbody>
+				<tr>
+					<td><strong>Waveform</strong></td>
+					<td><canvas id="waveform" width="480" height="160"></canvas></td>
+				</tr>
+				<tr>
+					<td><strong>Bar-Graph</strong></td>
+					<td><canvas id="bargraph" width="480" height="160"></canvas></td>
+				</tr>
+			</tbody>
+		</table>
 
-        async function startMicrophone() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 2048;
-                microphone = audioContext.createMediaStreamSource(stream);
-                microphone.connect(analyser);
-            } catch (err) {
-                alert("Please allow microphone access to use this tool.");
-            }
-        }
+	</div>
 
-        function startListening() {
-            let buffer = [];
-            let startTime = Date.now();
-
-            function processAudio() {
-                if (Date.now() - startTime > sampleDuration) {
-                    let averageFrequency = calculateAverageFrequency(buffer);
-                    let closestNote = getClosestNoteFromFrequency(averageFrequency);
-                    displayResults(closestNote, averageFrequency);
-                    return;
-                }
-
-                let frequency = getFrequencyFromAudio();
-                if (frequency) {
-                    buffer.push(frequency);
-                    updateProgressBar(Date.now() - startTime);
-                }
-
-                requestAnimationFrame(processAudio);
-            }
-
-            processAudio();
-        }
-
-        function getFrequencyFromAudio() {
-            let bufferLength = analyser.frequencyBinCount;
-            let buffer = new Float32Array(bufferLength);
-            analyser.getFloatFrequencyData(buffer);
-
-            let maxIndex = buffer.indexOf(Math.max(...buffer));
-            let frequency = maxIndex * audioContext.sampleRate / analyser.fftSize;
-            return frequency;
-        }
-
-        function calculateAverageFrequency(buffer) {
-            let sum = 0;
-            buffer.forEach(f => sum += f);
-            return sum / buffer.length;
-        }
-
-        function getClosestNoteFromFrequency(frequency) {
-            let closestNote = null;
-            let smallestDifference = Infinity;
-
-            for (let note in notesFrequencyMap) {
-                let noteFrequency = notesFrequencyMap[note];
-                let difference = Math.abs(noteFrequency - frequency);
-
-                if (difference < smallestDifference) {
-                    smallestDifference = difference;
-                    closestNote = note;
-                }
-            }
-
-            return closestNote;
-        }
-
-        function displayResults(note, frequency) {
-            noteDisplay.textContent = `Note: ${note}`;
-            resultDisplay.textContent = `Frequency: ${frequency.toFixed(2)} Hz`;
-            feedbackDisplay.textContent = "Great! Check your tuning.";
-            measureAgainBtn.style.display = 'block';
-        }
-
-        function updateProgressBar(timeElapsed) {
-            let percentage = (timeElapsed / sampleDuration) * 100;
-            progressBar.style.width = `${percentage}%`;
-        }
-    </script>
 </body>
 </html>
