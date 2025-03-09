@@ -151,21 +151,23 @@
                     frequency = currentFrequency;
                 }
             }
+
             return frequency;
         }
 
         function calculateAverageFrequency(buffer) {
-            let sum = buffer.reduce((acc, val) => acc + val, 0);
+            let sum = 0;
+            buffer.forEach(f => sum += f);
             return sum / buffer.length;
         }
 
         function getClosestNoteFromFrequency(frequency) {
-            let closestNote = '';
+            let closestNote = null;
             let smallestDifference = Infinity;
 
-            for (const note in notesFrequencyMap) {
+            for (let note in notesFrequencyMap) {
                 let noteFrequency = notesFrequencyMap[note];
-                let difference = Math.abs(frequency - noteFrequency);
+                let difference = Math.abs(noteFrequency - frequency);
 
                 if (difference < smallestDifference) {
                     smallestDifference = difference;
@@ -177,26 +179,9 @@
         }
 
         function displayResults(note, frequency) {
-            noteDisplay.textContent = `Detected Note: ${note}`;
-            let resultText = "Your note is in tune!";
-            let feedbackText = "";
-
-            let targetFrequency = notesFrequencyMap[note];
-            if (Math.abs(frequency - targetFrequency) > 1) {
-                if (frequency > targetFrequency) {
-                    resultText = "The note is sharp!";
-                    feedbackText = "Try loosening the string a little.";
-                } else {
-                    resultText = "The note is flat!";
-                    feedbackText = "Try tightening the string a little.";
-                }
-            }
-
-            resultDisplay.textContent = resultText;
-            feedbackDisplay.textContent = feedbackText;
-
-            isListening = false;
-            startBtn.disabled = false;
+            noteDisplay.textContent = `Note: ${note}`;
+            resultDisplay.textContent = `Frequency: ${frequency.toFixed(2)} Hz`;
+            feedbackDisplay.textContent = "Great! Check your tuning.";
         }
     </script>
 </body>
